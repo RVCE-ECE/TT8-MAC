@@ -24,7 +24,7 @@ module tb ();
   wire [7:0] uio_oe;
 
   // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+  tt_um_mac user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST
@@ -41,5 +41,38 @@ module tb ();
       .clk    (clk),      // clock
       .rst_n  (rst_n)     // not reset
   );
-
+initial begin
+        clk = 0;
+        forever #5 clk = ~clk;  
+    end
+    initial begin
+        rst_n = 0;  
+        ui_in = 8'b00000000;
+        uio_in = 8'b00000000;
+        #10;
+        rst_n = 1;  
+        ui_in = 8'b00000011; // 3
+        uio_in = 8'b00000010; // 2
+        #20; 
+        ui_in = 8'b00000001; // 1
+        uio_in = 8'b00000100; // 4
+        #20; 
+        ui_in = 8'b00000101; // 5
+        uio_in = 8'b00000011; // 3
+        #20;
+        ui_in = 8'b00000111; // 7
+        uio_in = 8'b00000010; // 2
+        #20;
+        ui_in = 8'b00000000; // 0
+        uio_in = 8'b00000000; // 0
+        #20;
+        ui_in = 8'b00000001; // 1
+        uio_in = 8'b00000001; // 1
+        #20;
+        #10;
+        $stop;
+    end
+    initial begin
+        $monitor("Time=%0d | ui_in=%b, uio_in=%b | uo_out=%b", $time, ui_in, uio_in, uo_out);
+    end
 endmodule
