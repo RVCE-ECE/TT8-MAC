@@ -5,52 +5,66 @@
 
 `default_nettype none
 `timescale 1ns / 1ps
-
 module tt_um_mac(
-    input  wire [7:0] ui_in,   
-    output wire [7:0] uo_out,  
-    input  wire [7:0] uio_in,  
-    output wire [7:0] uio_out, 
-    output wire [7:0] uio_oe,  
-    input  wire       ena,     
-    input  wire       clk,     
-    input  wire       rst_n    
+     input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
+    input  wire [7:0] uio_in,   // IOs: Input path
+    output wire [7:0] uio_out,  // IOs: Output path
+    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
+    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
+    input  wire       clk,      // clock
+    input  wire       rst_n     // reset_n - low to reset
 );
-    wire [3:0] A,B;
-    wire [7:0] Prod;        
-    reg [7:0] Acc;          
-    wire [7:0] Sum;         
-    assign uio_oe = 8'b0;  
-    assign A = ui_in[3:0];  
-    assign B = uio_in[3:0]; 
-    assign uio_out = 8'b0;  
-    wire _unused = &{ena};  
-    assign ui_in[7:4] = 4'b0;  
-    assign uio_in[7:4] = 4'b0; 
-    reg [7:0] Prod_stage;   
-    reg [7:0] Sum_stage;    
+
+    wire [3:0] A, B;
+    wire [7:0] Prod;        // 8-bit product from Dadda multiplier
+    reg [7:0] Acc;          // 8-bit accumulator register
+    wire [7:0] Sum;         // 8-bit sum from Kogge-Stone adder
+    assign uio_oe = 8'b0;  // Assuming uio is always input in this context
+    assign A = ui_in[3:0];
+    assign B = uio_in[3:0];
+    assign uio_out = 8'b0;
+
+    wire _unused = &{ena};
+
+    // Pipeline registers for stages
+    reg [7:0] Prod_stage;   // Register to hold product in pipeline
+    reg [7:0] Sum_stage;    // Register to hold sum in pipeline
+
+    // Instantiate Dadda Multiplier
     DaddaMultiplier4x4 U1 (.A(A), .B(B), .Prod(Prod));
+
+    // Pipeline stage 1: Store multiplication result
     always @(posedge clk or negedge rst_n) begin
-        if (~rst_n)
+        if (!rst_n)
             Prod_stage <= 8'b0;
         else
-            Prod_stage <= Prod; 
+            Prod_stage <= Prod; // Store the product in pipeline stage 1
     end
+
+    // Instantiate Kogge-Stone Adder for accumulation
     KoggeStoneAdder8bit U2 (.A(Prod_stage), .B(Acc), .Sum(Sum));
-     always @(posedge clk or negedge rst_n) begin
-        if (~rst_n)
+
+    // Pipeline stage 2: Store sum result
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
             Sum_stage <= 8'b0;
         else
-            Sum_stage <= Sum; 
+            Sum_stage <= Sum; // Store the sum in pipeline stage 2
     end
+
+    // Accumulator register with optimized feedback
     always @(posedge clk or negedge rst_n) begin
-        if (~rst_n)
-            Acc <= 8'b0;        
+        if (!rst_n)
+            Acc <= 8'b0;        // Reset accumulator to 0
         else
-            Acc <= Sum_stage;   
+            Acc <= Sum_stage;   // Update accumulator with the sum
     end
-    assign uo_out = Acc; 
-   endmodule
+
+    // Output the accumulated result
+    assign uo_out = Acc;
+endmodule  
+   
 module DaddaMultiplier4x4(
     input [3:0] A, B,
     output [7:0] Prod
